@@ -37,7 +37,7 @@ npx vercel --prod   # Deploy production URL
    git remote add origin <your-git-remote-url>
    git push -u origin main
    ```
-2. Import the repository at [vercel.com/new](https://vercel.com/new) (Framework Preset: **Other**, Output Directory: `.`).
+2. Import the repository at [vercel.com/new](https://vercel.com/new) (Framework Preset: **Other**, Output Directory: `.`; both are also set in `vercel.json`).
 
 ## Local Development & Rebuilding
 

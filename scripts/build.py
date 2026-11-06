@@ -282,7 +282,8 @@ tbody tr.sel td{{background:var(--f08);color:var(--fg)}}
 .isz{{font:11px var(--mono);color:var(--f55)}}
 .ir{{font-size:12px;color:var(--f55);margin:3px 0 10px}}
 .json{{margin:0;font:11.5px/1.55 var(--mono);background:var(--f04);border:1px solid var(--f08);border-radius:6px;padding:12px;overflow:auto;max-height:330px;white-space:pre-wrap;word-break:break-word;color:var(--f70)}}
-.json .k{{color:var(--fg)}} .json .s{{color:var(--f70)}} .json .n,.json .l{{color:var(--green)}}
+.json .k{{color:var(--fg)}} .json .s{{color:var(--f70)}} .json .n,.json .l{{color:var(--green)}} .json .c{{color:var(--f40)}} .json .p{{color:var(--green)}}
+.json + .json{{margin-top:8px}}
 .notes{{margin:12px 0 0;display:grid;grid-template-columns:minmax(72px,auto) minmax(0,1fr);gap:6px 12px;font-size:12px}}
 .notes dt{{font-family:var(--mono);font-size:11px;color:var(--fg);padding-top:1px}}
 .notes dd{{margin:0;color:var(--f70);line-height:1.45;min-width:0;overflow-wrap:anywhere}}
@@ -515,7 +516,7 @@ tr.fut .risk{{opacity:.5}}
       <div id="ov-facts"></div>
       <div id="ov-more"></div>
     </div>
-    <div class="insp-h"><h2>Wire Payload</h2><button type="button" class="copy-btn" id="btn-copy">Copy JSON</button></div>
+    <div class="insp-h"><h2>Command &amp; Payload</h2><button type="button" class="copy-btn" id="btn-copy">Copy</button></div>
     <div id="insp"></div>
     <div class="foot">AX <code>ax.io/v1alpha1</code> (<a href="{REPO_URL}" target="_blank" rel="noopener">github.com/google/ax</a> @ <code>241bc4d</code>) + <a href="{SUBSTRATE_URL}" target="_blank" rel="noopener">Agent Substrate v1.0</a>.<br>Shortcuts: <kbd>Space</kbd> play/pause · <kbd>←</kbd> <kbd>→</kbd> step · Click any row or node to inspect.</div>
   </aside>
@@ -599,9 +600,10 @@ const LESSONS = [
     wires: { "cli|server": "gRPC :8080", "server|postgres": "pgx SQL", "server|ateapi": "mTLS :443", "ateapi|runner": "schedule" },
     steps: [
       { title: "Declare & Apply", desc: "You run ax apply -f task.yaml. The CLI decodes the YAML and calls CreateTask on ax-server.", msgs: [
-        { from: "user", to: "cli", kind: "host", dt: 0, method: "ax apply -f", info: "ax apply -f examples/simple.yaml", json: { command: "ax apply -f examples/simple.yaml", apiVersion: "ax.io/v1alpha1", kind: "Task", metadata: { name: "simple-task", atespace: "default" } },
+        { from: "user", to: "cli", kind: "host", dt: 0, method: "ax apply -f", info: "ax apply -f examples/simple.yaml", sh: "$ ax apply -f examples/simple.yaml",
+          yaml: "apiVersion: ax.io/v1alpha1\nkind: Task\nmetadata:\n  name: simple-task\n  atespace: default\nspec:\n  image: \"gcr.io/ax-substrate/ate-images/ax-task-runner@sha256:3a0dea6a\u2026\"\n  command: [\"sh\", \"-c\", \"echo $ENVIRONMENT\"]\n  env:\n    - name: ENVIRONMENT\n      value: \"test\"\n  debug: true # serve guest services so `ax ssh` works; off by default\n",
           notes: [["ax apply", "Accepts multi-document YAML (Workspace, Model, Task) from a file or stdin."]] },
-        { from: "cli", to: "server", kind: "req", dt: 12, info: "gRPC CreateTask (simple-task)", json: { grpc: "ax.v1alpha1.AX/CreateTask", request: { atespace: "default", task: { metadata: { name: "simple-task", atespace: "default" }, spec: { image: "gcr.io/ax-substrate/ate-images/ax-task-runner@sha256:3a0dea6a…", command: ["sh", "-c", "echo $ENVIRONMENT"], debug: true } } } },
+        { from: "cli", to: "server", kind: "req", dt: 12, info: "gRPC CreateTask (simple-task)", sh: "$ ax apply -f examples/simple.yaml", json: { grpc: "ax.v1alpha1.AX/CreateTask", request: { atespace: "default", task: { metadata: { name: "simple-task", atespace: "default" }, spec: { image: "gcr.io/ax-substrate/ate-images/ax-task-runner@sha256:3a0dea6a…", command: ["sh", "-c", "echo $ENVIRONMENT"], debug: true } } } },
           notes: [["CreateTask", "Tasks are immutable once created. Image must be pinned by @sha256 digest."]] }
       ]},
       { title: "Persist & Provision (Suspended)", desc: "ax-server acquires a Postgres lease, stores the Task, creates an ActorTemplate and Actor on Agent Substrate, and immediately suspends it.", msgs: [
@@ -609,7 +611,7 @@ const LESSONS = [
           notes: [["protojson", "Resources are stored as jsonb documents so adding API fields never requires a schema migration."]] },
         { from: "server", to: "ateapi", kind: "sub", dt: 45, method: "Substrate/CreateActor", info: "CreateActorTemplate + CreateActor + SuspendActor", json: { service: "ate.api.v1.Control", calls: ["EnsureAtespace(default)", "CreateActorTemplate(simple-task-tmpl-7c4e19a2)", "CreateActor(simple-task)", "SuspendActor(simple-task)"] },
           notes: [["Start Suspended", "New tasks do not consume a worker until you explicitly call ax resume."]] },
-        { from: "server", to: "cli", kind: "res", dt: 10, info: "task/simple-task created (Suspended)", json: { grpc: "ax.v1alpha1.AX/CreateTaskResponse", status: { phase: "Suspended", taskId: "task-9f8e1a2b", actor: "simple-task" } } }
+        { from: "server", to: "cli", kind: "res", dt: 10, info: "task.ax.io/simple-task created (Suspended)", sh: "task.ax.io/simple-task created", json: { grpc: "ax.v1alpha1.AX/CreateTaskResponse", status: { phase: "Suspended", taskId: "task-9f8e1a2b", actor: "simple-task" } } }
       ]},
       { title: "Resume & Boot Sandbox", desc: "You run ax resume task simple-task. Substrate assigns a gVisor worker, boots ax-task-runner, and ax-server polls /readyz until the workspace is initialized.", msgs: [
         { from: "cli", to: "server", kind: "req", dt: 400, info: "gRPC ResumeTask (simple-task)", json: { grpc: "ax.v1alpha1.AX/ResumeTask", request: { atespace: "default", name: "simple-task" } } },
@@ -617,7 +619,7 @@ const LESSONS = [
         { from: "ateapi", to: "runner", kind: "sub", dt: 180, method: "exec ax-task-runner (PID 1)", info: "boot PID 1 (/usr/local/bin/ax-task-runner)", json: { pid1: "/usr/local/bin/ax-task-runner", env: ["AX_TASK_YAML=…", "AX_WORKSPACE_YAML=…"], mounts: ["/workspace (DurableDir)"], listeners: ["0.0.0.0:80 (probes + guest gRPC)", "127.0.0.1:8099 (loopback metadata)"] } },
         { from: "server", to: "runner", kind: "http", dt: 60, method: "GET /readyz?check=workspace", info: "GET /readyz?check=workspace → 200 OK", json: { request: "GET http://10.20.3.67:80/readyz?check=workspace", response: { status: "200 OK", body: "ok" } },
           notes: [["/readyz", "Returns 503 while cloning Git repos on maiden boot, then 200 OK once .git/.ax/initialized is written."]] },
-        { from: "server", to: "cli", kind: "res", dt: 12, method: "AX/ResumeTaskResponse", info: "task/simple-task resumed (Running)", json: { status: { phase: "Running", actor: "simple-task", workerIp: "10.20.3.67", conditions: [{ type: "WorkspaceReady", status: "True" }, { type: "Ready", status: "True", reason: "TaskRunning" }] } } }
+        { from: "server", to: "cli", kind: "res", dt: 12, method: "AX/ResumeTaskResponse", info: "task.ax.io/simple-task resumed (Running)", sh: "task.ax.io/simple-task resumed", json: { status: { phase: "Running", actor: "simple-task", workerIp: "10.20.3.67", conditions: [{ type: "WorkspaceReady", status: "True" }, { type: "Ready", status: "True", reason: "TaskRunning" }] } } }
       ]},
       { title: "Inspect over ax ssh", desc: "Because spec.debug is true, you can run commands or open an interactive PTY inside the sandbox via Guest ProcessService.", msgs: [
         { from: "cli", to: "runner", kind: "req", dt: 500, info: "ax ssh simple-task -- ls -la /workspace", json: { grpc: "ateenv.v1alpha.ProcessService/StartProcess", headers: { "ate-target-actor": "default/simple-task" }, command: "/bin/ls", args: ["-la", "/workspace"], tty: false } },
@@ -626,7 +628,7 @@ const LESSONS = [
       { title: "Suspend & Checkpoint", desc: "When idle, ax suspend checkpoints the /workspace volume to object storage and releases the gVisor worker.", msgs: [
         { from: "cli", to: "server", kind: "req", dt: 600, info: "gRPC SuspendTask (simple-task)", json: { grpc: "ax.v1alpha1.AX/SuspendTask", request: { atespace: "default", name: "simple-task" } } },
         { from: "server", to: "ateapi", kind: "sub", dt: 120, info: "SuspendActor (SNAPSHOT_FIDELITY_VOLUMES)", json: { rpc: "ate.api.v1.Control/SuspendActor", actor: "default/simple-task", snapshotFidelity: "SNAPSHOT_FIDELITY_VOLUMES", workerReleased: true } },
-        { from: "server", to: "cli", kind: "res", dt: 10, method: "AX/SuspendTaskResponse", info: "task/simple-task suspended (0 CPU/RAM)", json: { status: { phase: "Suspended", workerIp: "", conditions: [{ type: "WorkspaceReady", status: "True" }, { type: "Ready", status: "False", reason: "TaskSuspended" }] } } }
+        { from: "server", to: "cli", kind: "res", dt: 10, method: "AX/SuspendTaskResponse", info: "task.ax.io/simple-task suspended (0 CPU/RAM)", sh: "task.ax.io/simple-task suspended", json: { status: { phase: "Suspended", workerIp: "", conditions: [{ type: "WorkspaceReady", status: "True" }, { type: "Ready", status: "False", reason: "TaskSuspended" }] } } }
       ]}
     ]
   },
@@ -662,16 +664,16 @@ const LESSONS = [
     wires: { "cli|server": "gRPC :8080", "server|postgres": "pgx SQL", "server|ateapi": "gRPC :443" },
     steps: [
       { title: "Apply Workspace", desc: "ax apply reads the first YAML document (kind: Workspace), checks if it exists via GetWorkspace, and upserts it with UpdateWorkspace.", msgs: [
-        { from: "cli", to: "server", kind: "req", dt: 0, info: "GetWorkspace + UpdateWorkspace (golang)", json: { grpc: "ax.v1alpha1.AX/UpdateWorkspace", workspace: { apiVersion: "ax.io/v1alpha1", kind: "Workspace", metadata: { name: "golang", atespace: "default" }, spec: { git: [{ name: "origin", repo: "https://github.com/golang/go.git", branch: "my-fix" }], files: [{ path: "AGENTS.md", content: "- Run `go test` to ensure tests pass.\n- Do not modify the public API.\n" }], mcp: { servers: [{ name: "code-search", endpoint: "http://cs-mcp.default.svc:8080/mcp" }] } } } },
+        { from: "cli", to: "server", kind: "req", dt: 0, info: "GetWorkspace + UpdateWorkspace (golang)", sh: "$ ax apply -f manifests.yaml", yaml: "apiVersion: ax.io/v1alpha1\nkind: Workspace\nmetadata:\n  name: golang\n  atespace: default\nspec:\n  git:\n    - name: origin\n      repo: \"https://github.com/golang/go.git\"\n      branch: \"my-fix\"\n  files:\n    - path: \"AGENTS.md\"\n      content: |\n        - Run `go test` to ensure tests pass.\n        - Do not modify the public API.\n  mcp:\n    servers:\n      - name: code-search\n        endpoint: \"http://cs-mcp.default.svc:8080/mcp\"\n---\napiVersion: ax.io/v1alpha1\nkind: Model\nmetadata:\n  name: default-model\n  atespace: default\nspec:\n  provider: google\n  model: gemini-3.8-flash\n  secretKey:\n    name: gemini-api-secret\n    key: GEMINI_API_KEY\n---\napiVersion: ax.io/v1alpha1\nkind: Task\nmetadata:\n  name: test\n  atespace: default\nspec:\n  image: \"ghcr.io/my-org/coding-agent@sha256:6772a1f2e8b0\u2026\"\n  workspace:\n    name: golang\n  config:\n    goal: \"Fix what's broken please.\"\n  debug: true\n", json: { grpc: "ax.v1alpha1.AX/UpdateWorkspace", workspace: { apiVersion: "ax.io/v1alpha1", kind: "Workspace", metadata: { name: "golang", atespace: "default" }, spec: { git: [{ name: "origin", repo: "https://github.com/golang/go.git", branch: "my-fix" }], files: [{ path: "AGENTS.md", content: "- Run `go test` to ensure tests pass.\n- Do not modify the public API.\n" }], mcp: { servers: [{ name: "code-search", endpoint: "http://cs-mcp.default.svc:8080/mcp" }] } } } },
           notes: [["Client-side diff", "ax apply compares spec before & after UpdateWorkspace to print created, configured, or unchanged."]] },
         { from: "server", to: "postgres", kind: "sql", dt: 7, info: "UPSERT INTO workspaces (default/golang)", json: { sql: "INSERT INTO workspaces (atespace, name, data, saved_at) VALUES ($1, $2, $3, clock_timestamp()) ON CONFLICT (atespace, name) DO UPDATE SET data = EXCLUDED.data, saved_at = EXCLUDED.saved_at" } },
-        { from: "server", to: "cli", kind: "res", dt: 5, method: "AX/UpdateWorkspaceResponse", info: "workspace/golang created", json: { output: "workspace/golang created" } }
+        { from: "server", to: "cli", kind: "res", dt: 5, method: "AX/UpdateWorkspaceResponse", info: "workspace.ax.io/golang created", sh: "workspace.ax.io/golang created" }
       ]},
       { title: "Apply Model", desc: "The second document (kind: Model) binds a provider and model identifier to a Kubernetes Secret name without embedding raw API keys in YAML.", msgs: [
-        { from: "cli", to: "server", kind: "req", dt: 20, info: "UpdateModel (default-model)", json: { grpc: "ax.v1alpha1.AX/UpdateModel", model: { apiVersion: "ax.io/v1alpha1", kind: "Model", metadata: { name: "default-model", atespace: "default" }, spec: { provider: "google", model: "gemini-3.8-flash", secretKey: "gemini-api-secret" } } },
+        { from: "cli", to: "server", kind: "req", dt: 20, info: "UpdateModel (default-model)", json: { grpc: "ax.v1alpha1.AX/UpdateModel", model: { apiVersion: "ax.io/v1alpha1", kind: "Model", metadata: { name: "default-model", atespace: "default" }, spec: { provider: "google", model: "gemini-3.8-flash", secretKey: { name: "gemini-api-secret", key: "GEMINI_API_KEY" } } } },
           notes: [["secretKey", "Names the Kubernetes Secret holding the API key; raw credentials never sit in PostgreSQL."]] },
         { from: "server", to: "postgres", kind: "sql", dt: 6, info: "UPSERT INTO models (default/default-model)", json: { sql: "INSERT INTO models (atespace, name, data, saved_at) VALUES ('default', 'default-model', $1::jsonb, clock_timestamp()) ON CONFLICT DO UPDATE …" } },
-        { from: "server", to: "cli", kind: "res", dt: 5, method: "AX/UpdateModelResponse", info: "model/default-model configured", json: { output: "model/default-model configured" } }
+        { from: "server", to: "cli", kind: "res", dt: 5, method: "AX/UpdateModelResponse", info: "model.ax.io/default-model created", sh: "model.ax.io/default-model created" }
       ]},
       { title: "Validate & Create Task", desc: "The third document (kind: Task) references workspace: golang. ax-server validates that the Workspace exists, bakes both YAMLs into the ActorTemplate env, and creates the Task.", msgs: [
         { from: "cli", to: "server", kind: "req", dt: 25, info: "CreateTask (test → workspace: golang)", json: { grpc: "ax.v1alpha1.AX/CreateTask", task: { apiVersion: "ax.io/v1alpha1", kind: "Task", metadata: { name: "test", atespace: "default" }, spec: { image: "ghcr.io/my-org/coding-agent@sha256:6772a1f2e8b0…", workspace: { name: "golang" }, config: { goal: "Fix what's broken please." }, resources: { limits: { cpu: "1000m", memory: "512Mi" } }, debug: true } } },
@@ -679,7 +681,7 @@ const LESSONS = [
         { from: "server", to: "postgres", kind: "sql", dt: 5, info: "SELECT data FROM workspaces WHERE name='golang'", json: { sql: "SELECT data FROM workspaces WHERE atespace = 'default' AND name = 'golang'", result: "1 row (verified before saving task)" },
           notes: [["Workspace check (#461)", "If the referenced Workspace does not exist, CreateTask fails immediately with NotFound instead of leaving a broken task."]] },
         { from: "server", to: "ateapi", kind: "sub", dt: 40, method: "Substrate/CreateActor", info: "CreateActorTemplate + CreateActor + SuspendActor", json: { template: "test-tmpl-4a91c02e", env: { AX_TASK_YAML: "<serialized Task YAML>", AX_WORKSPACE_YAML: "<serialized Workspace YAML>" }, initialPhase: "Suspended" } },
-        { from: "server", to: "cli", kind: "res", dt: 8, method: "AX/CreateTaskResponse", info: "task/test created", json: { output: "task/test created" } }
+        { from: "server", to: "cli", kind: "res", dt: 8, method: "AX/CreateTaskResponse", info: "task.ax.io/test created", sh: "task.ax.io/test created" }
       ]}
     ]
   },
@@ -730,7 +732,7 @@ const LESSONS = [
           notes: [["O(1) Substrate RPCs", "Whether the page has 1 task or 100 tasks in the default atespace, ax-server makes just one ListActors RPC."]] }
       ]},
       { title: "Overlay & Compute Ready (applyActor)", desc: "applyActor() merges each Actor's live state with the stored WorkspaceReady condition to compute Phase and Ready on the fly.", msgs: [
-        { from: "server", to: "cli", kind: "res", dt: 8, method: "AX/ListTasksResponse", info: "merged tasks: Running, Suspended, Failed (ActorCrashed)", json: { tasks: [
+        { from: "server", to: "cli", kind: "res", dt: 8, method: "AX/ListTasksResponse", info: "merged tasks: Running, Suspended, Failed (ActorCrashed)", sh: "NAME            ATESPACE   PHASE       ACTOR           WORKER-IP     AGE\ntest            default    Running     test            10.20.3.67    2h\nnightly-audit   default    Suspended   nightly-audit                 1d\nbroken-run      default    Failed      broken-run                    3h", json: { tasks: [
           { name: "test", phase: "Running", actor: "test", workerIp: "10.20.3.67", ready: "True (TaskRunning = ACTOR_STATE_READY && WorkspaceReady)" },
           { name: "nightly-audit", phase: "Suspended", actor: "nightly-audit", workerIp: "", ready: "False (TaskSuspended)" },
           { name: "broken-run", phase: "Failed", actor: "broken-run", workerIp: "", ready: "False (ActorCrashed)" }
@@ -924,7 +926,7 @@ const LESSONS = [
         { from: "runner", to: "gcs", kind: "sub", dt: 140, method: "Checkpoint /workspace", info: "upload /workspace snapshot (SNAPSHOT_FIDELITY_VOLUMES)", json: { fidelity: "SNAPSHOT_FIDELITY_VOLUMES", durableDirs: ["/workspace"], preservedFiles: ["/workspace/.git/.ax/initialized", "/workspace/AGENTS.md", "/workspace/src/fix.go (agent edits)"] },
           notes: [["Volume marker (#518)", "Keeping the marker at /workspace/.git/.ax/initialized guarantees it survives a volumes-only snapshot/restore so maiden setup never overwrites agent edits on wake."]] },
         { from: "ateapi", to: "server", kind: "sub", dt: 18, method: "ACTOR_STATE_SUSPENDED", info: "Actor state: ACTOR_STATE_SUSPENDED", json: { state: "ACTOR_STATE_SUSPENDED", workerIp: "" } },
-        { from: "server", to: "cli", kind: "res", dt: 8, method: "AX/SuspendTaskResponse", info: "task/test suspended", json: { status: { phase: "Suspended", workerIp: "", conditions: [{ type: "WorkspaceReady", status: "True" }, { type: "Ready", status: "False", reason: "TaskSuspended" }] } } }
+        { from: "server", to: "cli", kind: "res", dt: 8, method: "AX/SuspendTaskResponse", info: "task.ax.io/test suspended", sh: "task.ax.io/test suspended", json: { status: { phase: "Suspended", workerIp: "", conditions: [{ type: "WorkspaceReady", status: "True" }, { type: "Ready", status: "False", reason: "TaskSuspended" }] } } }
       ]}
     ]
   },
@@ -968,7 +970,7 @@ const LESSONS = [
           ]},
           { title: "Delete Row from Postgres", desc: "Once Substrate cleanup succeeds (or returns NotFound), ax-server deletes the row from PostgreSQL.", msgs: [
             { from: "server", to: "postgres", kind: "sql", dt: 6, info: "DELETE FROM tasks WHERE atespace='default' AND name='test'", json: { sql: "DELETE FROM tasks WHERE atespace = $1 AND name = $2", params: ["default", "test"] } },
-            { from: "server", to: "cli", kind: "res", dt: 5, method: "AX/DeleteTaskResponse", info: "task/test deleted", json: { output: "task/test deleted" } }
+            { from: "server", to: "cli", kind: "res", dt: 5, method: "AX/DeleteTaskResponse", info: "task.ax.io/test deleted", sh: "task.ax.io/test deleted" }
           ]}
         ]
       },
@@ -997,7 +999,7 @@ const LESSONS = [
           ]},
           { title: "ResumeActor", desc: "With the crashed state cleared by RevertActor, ResumeActor schedules a fresh gVisor worker and boots the restored workspace.", msgs: [
             { from: "server", to: "ateapi", kind: "sub", dt: 70, info: "ResumeActor → ACTOR_STATE_READY", json: { rpc: "ate.api.v1.Control/ResumeActor", state: "ACTOR_STATE_READY", workerIp: "10.20.3.71" } },
-            { from: "server", to: "cli", kind: "res", dt: 10, method: "AX/ResumeTaskResponse", info: "task/test resumed (recovered)", json: { status: { phase: "Running", workerIp: "10.20.3.71" } } }
+            { from: "server", to: "cli", kind: "res", dt: 10, method: "AX/ResumeTaskResponse", info: "task.ax.io/test resumed (recovered)", sh: "task.ax.io/test resumed", json: { status: { phase: "Running", workerIp: "10.20.3.71" } } }
           ]}
         ]
       }
@@ -1148,7 +1150,7 @@ JS_PART_2 = r"""
     wires: { "user|cli": "ax get tasks", "cli|k8s": "spawns tunnel", "cli|server": "127.0.0.1:54321 → :8080" },
     steps: [
       { title: "Check Cached Tunnel State", desc: "You run ax get tasks. The CLI resolves the active kube context (prod-cluster) and checks ~/.ax/tunnels/prod-cluster.json.", msgs: [
-        { from: "user", to: "cli", kind: "host", dt: 0, method: "ax get tasks", info: "ax get tasks (context: prod-cluster)", json: { command: "ax get tasks", activeKubeContext: "prod-cluster", stateFile: "~/.ax/tunnels/prod-cluster.json", cachedState: "none (or stale PID)" } }
+        { from: "user", to: "cli", kind: "host", dt: 0, method: "ax get tasks", info: "ax get tasks (context: prod-cluster)", sh: "$ ax get tasks\n# context prod-cluster resolved; no live tunnel in ~/.ax/tunnels/prod-cluster.json", json: { activeKubeContext: "prod-cluster", stateFile: "~/.ax/tunnels/prod-cluster.json", cachedState: "none (or stale PID)" } }
       ]},
       { title: "Spawn Detached kubectl port-forward", desc: "On a cache miss, tunnel.Ensure spawns a detached background process (Setsid: true) running kubectl port-forward svc/ax-server :8080 and parses 'Forwarding from 127.0.0.1:<port>' from stdout.", msgs: [
         { from: "cli", to: "k8s", kind: "http", dt: 35, method: "kubectl port-forward :8080", info: "kubectl --context prod-cluster -n ax-system port-forward svc/ax-server :8080", json: { spawn: ["kubectl", "--context", "prod-cluster", "-n", "ax-system", "port-forward", "svc/ax-server", ":8080"], sysProcAttr: { Setsid: true }, stdoutLine: "Forwarding from 127.0.0.1:54321 -> 8080", savedJson: { context: "prod-cluster", namespace: "ax-system", address: "127.0.0.1:54321", pid: 48291, startedAt: "2026-11-05T22:10:00Z" } },
@@ -1157,7 +1159,7 @@ JS_PART_2 = r"""
       { title: "Verify /healthz & Send gRPC", desc: "The CLI probes GET http://127.0.0.1:54321/healthz (400ms timeout) and then dials gRPC over 127.0.0.1:54321. Subsequent ax commands reuse this tunnel in <2ms!", msgs: [
         { from: "cli", to: "server", kind: "http", dt: 8, method: "GET /healthz", info: "GET http://127.0.0.1:54321/healthz → 200 OK", json: { request: "GET http://127.0.0.1:54321/healthz", timeout: "400ms", response: "200 OK" } },
         { from: "cli", to: "server", kind: "req", dt: 6, info: "gRPC ListTasks over 127.0.0.1:54321", json: { grpc: "ax.v1alpha1.AX/ListTasks", target: "127.0.0.1:54321" } },
-        { from: "server", to: "cli", kind: "res", dt: 10, method: "AX/ListTasksResponse", info: "ListTasksResponse", json: { tasks: [{ name: "simple-task", phase: "Running" }] } }
+        { from: "server", to: "cli", kind: "res", dt: 10, method: "AX/ListTasksResponse", info: "ListTasksResponse", sh: "NAME          ATESPACE   PHASE     ACTOR         WORKER-IP    AGE\nsimple-task   default    Running   simple-task   10.20.3.67   1m", json: { tasks: [{ name: "simple-task", phase: "Running" }] } }
       ]}
     ]
   },
@@ -1264,7 +1266,7 @@ JS_PART_2 = r"""
     wires: { "cli|server": "GetTask", "cli|k8s": "mint cert", "cli|router": "mTLS :443", "router|runner": "h2c :80" },
     steps: [
       { title: "Verify Running & spec.debug: true", desc: "ax ssh calls GetTask on ax-server to verify that the task is Running, has a workerIP, and was created with spec.debug: true.", msgs: [
-        { from: "cli", to: "server", kind: "req", dt: 0, info: "GetTask (default/test)", json: { grpc: "ax.v1alpha1.AX/GetTask", request: { atespace: "default", name: "test" } } },
+        { from: "cli", to: "server", kind: "req", dt: 0, info: "GetTask (default/test)", sh: "$ ax ssh test -- ls -la /workspace", json: { grpc: "ax.v1alpha1.AX/GetTask", request: { atespace: "default", name: "test" } } },
         { from: "server", to: "cli", kind: "res", dt: 8, method: "AX/GetTaskResponse", info: "Running · workerIP: 10.20.3.67 · debug: true", json: { spec: { debug: true }, status: { phase: "Running", workerIp: "10.20.3.67" } },
           notes: [["Why check debug first?", "When spec.debug is false, ax-task-runner does not register Guest ProcessService on :80. Checking up front avoids opening a router tunnel for a task that will refuse SSH."]] }
       ]},
@@ -1274,7 +1276,7 @@ JS_PART_2 = r"""
         { from: "k8s", to: "cli", kind: "http", dt: 40, method: "200 OK (X.509 SVID)", info: "Issued X.509 SVID chain + delete CSR", json: { spiffeId: "spiffe://cluster.local/ns/ax-system/sa/ax-server", validFor: "1h (cached until cert.NotAfter)", cleanup: "DELETE PodCertificateRequest ax-cli-7x9qm" } }
       ]},
       { title: "Stream Guest ProcessService over mTLS", desc: "The CLI port-forwards svc/atenet-router:443, sets metadata ate-target-actor: default/test, and runs StartProcess + StreamProcessOutput (plus ResizeTty and SignalProcess for interactive PTYs).", msgs: [
-        { from: "cli", to: "router", kind: "req", dt: 18, info: "mTLS gRPC StartProcess (ate-target-actor: default/test)", json: { grpc: "ateenv.v1alpha.ProcessService/StartProcess", metadata: { "ate-target-actor": "default/test" }, request: { command: "/bin/sh", args: ["-c", "ls -la /workspace"], cwd: "/workspace", tty: true, rows: 42, cols: 140 } } },
+        { from: "cli", to: "router", kind: "req", dt: 18, info: "mTLS gRPC StartProcess (ate-target-actor: default/test)", sh: "$ ax ssh test -- ls -la /workspace", json: { grpc: "ateenv.v1alpha.ProcessService/StartProcess", metadata: { "ate-target-actor": "default/test" }, request: { command: "/bin/sh", args: ["-c", "ls -la /workspace"], cwd: "/workspace", tty: true, rows: 42, cols: 140 } } },
         { from: "router", to: "runner", kind: "req", dt: 4, method: "Process/StartProcess (h2c)", info: "proxy h2c → 10.20.3.67:80 ProcessService", json: { upstream: "10.20.3.67:80", service: "ateenv.v1alpha.ProcessService" } },
         { from: "runner", to: "router", kind: "res", dt: 15, method: "Process/StreamProcessOutput", info: "StreamProcessOutput (stdout chunks + exitCode: 0)", json: { processId: "proc-1", data: "total 16\ndrwxr-xr-x 4 root root 4096 Nov  5 22:15 .\ndrwxr-xr-x 8 root root 4096 Nov  5 22:15 .git\n-rw-r--r-- 1 root root   68 Nov  5 22:15 AGENTS.md\n", exitCode: 0 } },
         { from: "router", to: "cli", kind: "res", dt: 4, method: "Process/StreamProcessOutput", info: "stdout rendered in terminal · exit 0", json: { exitCode: 0 } }
@@ -1313,19 +1315,19 @@ JS_PART_2 = r"""
     wires: { "cli|server": "gRPC", "server|ateapi": "CreateActorTemplate / Resume", "server|runner": ":80" },
     steps: [
       { title: "1. Tag-Only Image Rejected (@sha256 Required)", desc: "You apply a Task with image: ghcr.io/my-org/agent:v1. Agent Substrate rejects tag-only images because a mutated tag would mismatch checkpointed volume/actor snapshots.", msgs: [
-        { from: "cli", to: "server", kind: "req", dt: 0, info: "CreateTask (image: ghcr.io/my-org/agent:v1)", json: { grpc: "ax.v1alpha1.AX/CreateTask", spec: { image: "ghcr.io/my-org/agent:v1" } } },
+        { from: "cli", to: "server", kind: "req", dt: 0, info: "CreateTask (image: ghcr.io/my-org/agent:v1)", sh: "$ ax apply -f task.yaml", yaml: "apiVersion: ax.io/v1alpha1\nkind: Task\nmetadata:\n  name: test\nspec:\n  image: \"ghcr.io/my-org/agent:v1\"   # tag-only: Substrate requires @sha256:<digest>\n", json: { grpc: "ax.v1alpha1.AX/CreateTask", spec: { image: "ghcr.io/my-org/agent:v1" } } },
         { from: "server", to: "ateapi", kind: "sub", dt: 18, info: "CreateActorTemplate (tag-only image)", json: { rpc: "ate.api.v1.Control/CreateActorTemplate", image: "ghcr.io/my-org/agent:v1" } },
         { from: "ateapi", to: "server", kind: "err", dt: 10, info: "InvalidArgument: image must be pinned by digest", json: { code: "InvalidArgument", message: "container.image \"ghcr.io/my-org/agent:v1\" must be pinned by digest (@sha256:...)" },
           notes: [["Fix", "Always pin Task.spec.image to an immutable digest: ghcr.io/my-org/agent@sha256:6772a1f2…"]] },
         { from: "server", to: "cli", kind: "err", dt: 6, method: "AX/CreateTaskResponse (Failed)", info: "Phase: Failed (Reason: TemplateCreationFailed)", json: { status: { phase: "Failed", conditions: [{ type: "Ready", status: "False", reason: "TemplateCreationFailed", message: "image must be pinned by digest" }] } } }
       ]},
       { title: "2. spec.resources.requests Rejected (Limits Only)", desc: "Unlike Kubernetes Pods, Agent Substrate sizes microVM/gVisor sandboxes strictly from limits. Setting spec.resources.requests returns InvalidArgument immediately.", msgs: [
-        { from: "cli", to: "server", kind: "req", dt: 40, method: "AX/CreateTask", info: "CreateTask with resources.requests.cpu: 500m", json: { grpc: "ax.v1alpha1.AX/CreateTask", spec: { resources: { requests: { cpu: "500m" }, limits: { cpu: "2", memory: "4Gi" } } } } },
+        { from: "cli", to: "server", kind: "req", dt: 40, method: "AX/CreateTask", info: "CreateTask with resources.requests.cpu: 500m", sh: "$ ax apply -f task.yaml", yaml: "apiVersion: ax.io/v1alpha1\nkind: Task\nmetadata:\n  name: test\nspec:\n  resources:\n    requests:      # not supported: Substrate sizes sandboxes by limits alone\n      cpu: \"500m\"\n    limits:\n      cpu: \"2\"\n      memory: \"4Gi\"\n", json: { grpc: "ax.v1alpha1.AX/CreateTask", spec: { resources: { requests: { cpu: "500m" }, limits: { cpu: "2", memory: "4Gi" } } } } },
         { from: "server", to: "cli", kind: "err", dt: 3, info: "InvalidArgument: resources.requests is not supported", json: { code: "InvalidArgument", validator: "ValidateTask (pkg/apis/v1alpha1/types.go)", message: "spec.resources.requests is not supported; set spec.resources.limits only (cpu < 1000 cores, memory > 0)" },
           notes: [["Fix", "Specify only spec.resources.limits: { cpu: \"2\", memory: \"4Gi\" } (or omit to use the 1000m / 512Mi default)."]] }
       ]},
       { title: "3. ax ssh Refused When spec.debug is false", desc: "By default, spec.debug is false so production tasks do not expose arbitrary command execution or file reads on port 80.", msgs: [
-        { from: "cli", to: "server", kind: "req", dt: 40, info: "ax ssh prod-task -- whoami", json: { grpc: "ax.v1alpha1.AX/GetTask", name: "prod-task" } },
+        { from: "cli", to: "server", kind: "req", dt: 40, info: "ax ssh prod-task -- whoami", sh: "$ ax ssh prod-task -- whoami", json: { grpc: "ax.v1alpha1.AX/GetTask", name: "prod-task" } },
         { from: "server", to: "cli", kind: "err", dt: 5, method: "Error: debug is false", info: "Error: task 'prod-task' does not have spec.debug enabled", json: { spec: { debug: false }, cliError: "task \"prod-task\" does not have debug enabled (set spec.debug: true to use ax ssh)" },
           notes: [["Security boundary", "When debug: false, ax-task-runner serves ONLY /healthz and /readyz on :80; ProcessService and FileSystemService are never registered."]] }
       ]},
@@ -1337,7 +1339,7 @@ JS_PART_2 = r"""
         { from: "server", to: "cli", kind: "err", dt: 6, method: "Error: ResourceExhausted", info: "Failed to resume (task stays Suspended)", json: { error: "rpc error: code = ResourceExhausted desc = no free workers available" } }
       ]},
       { title: "5. Plaintext Secrets in spec.config & >31 KiB YAML Cap", desc: "Task.spec.config is plain text returned by GetTask/ListTasks and capped so serialized AX_TASK_YAML fits in 31 KiB. Never put raw API keys or large blobs in spec.config.", msgs: [
-        { from: "cli", to: "server", kind: "req", dt: 40, method: "AX/CreateTask", info: "CreateTask (spec.config > 16 KiB or containing API key)", json: { grpc: "ax.v1alpha1.AX/CreateTask", spec: { config: { apiKey: "AIzaSy… (DANGER: visible to all GetTask callers!)", largeBlob: "<>31 KiB serialized AX_TASK_YAML>" } } } },
+        { from: "cli", to: "server", kind: "req", dt: 40, method: "AX/CreateTask", info: "CreateTask (spec.config > 16 KiB or containing API key)", sh: "$ ax apply -f task.yaml", yaml: "apiVersion: ax.io/v1alpha1\nkind: Task\nmetadata:\n  name: test\nspec:\n  config:\n    apiKey: \"AIzaSy...\"          # visible to anyone who can run `ax get task`; use Model.spec.secretKey instead\n    largeBlob: \"<over 31 KiB once serialized>\"\n", json: { grpc: "ax.v1alpha1.AX/CreateTask", spec: { config: { apiKey: "AIzaSy… (DANGER: visible to all GetTask callers!)", largeBlob: "<>31 KiB serialized AX_TASK_YAML>" } } } },
         { from: "server", to: "cli", kind: "err", dt: 4, info: "InvalidArgument: serialized task YAML exceeds 31744 bytes", json: { code: "InvalidArgument", validator: "ValidateTask (maxTaskEnvBytes = 31 * 1024)", message: "serialized task YAML exceeds 31744 bytes (Linux MAX_ARG_STRLEN 128 KiB env limit)" },
           notes: [["Fix for secrets", "Reference a Kubernetes Secret via Model.spec.secretKey instead of embedding secrets in spec.config."], ["Fix for large files", "Put guidance files in Workspace.spec.files or a Git repository instead of Task.spec.config."]] }
       ]}
@@ -1425,7 +1427,7 @@ TM.create = {
     wires: { "cli|server": "gRPC", "server|redis": "XADD", "redis|ateapi": "XREADGROUP → reconcile" },
     steps: [
       { title: "Enqueue on Redis Stream (Deprecated)", dep: "Removed when ax-controller and Redis were replaced by direct execution in ax-server under PostgreSQL leases.", desc: "ax-server validates the Task and appends a reconcile event to Redis Streams instead of calling Substrate directly.", msgs: [
-        { from: "cli", to: "server", kind: "req", dt: 0, info: "CreateTask (test)", json: { grpc: "ax.v1alpha1.AX/CreateTask", name: "test" } },
+        { from: "cli", to: "server", kind: "req", dt: 0, info: "CreateTask (test)", sh: "$ ax apply -f task.yaml", json: { grpc: "ax.v1alpha1.AX/CreateTask", name: "test" } },
         { from: "server", to: "redis", kind: "note", dt: 5, method: "XADD ax:tasks", info: "XADD ax:tasks * task default/test", json: { redis: "XADD ax:tasks * kind Task atespace default name test" } },
         { from: "server", to: "cli", kind: "res", dt: 4, method: "AX/CreateTaskResponse (Pending)", info: "202 Accepted (Pending async controller)", json: { status: { phase: "Pending" } } }
       ]},
@@ -1554,7 +1556,7 @@ const RISKS = {
 function markRisks(msgs, L) {
   if (L.absent) return;
   for (const m of msgs) {
-    const txt = JSON.stringify(m.json || {});
+    const txt = JSON.stringify(m.json || {}) + (m.yaml || "");
     if (txt.includes("@sha256") && L.id === "create") m.risk = "digest";
     else if (txt.includes("spec.config") || (m.json && m.json.task && m.json.task.spec && m.json.task.spec.config)) m.risk = "secrets";
     else if (txt.includes("markerLinked") || txt.includes(".git/.ax/initialized")) m.risk = "symlink";
@@ -1813,32 +1815,99 @@ function renderOverview() {
   $("#ov-more").innerHTML = more;
 }
 
-function hl(json) {
-  const s = JSON.stringify(json, null, 2);
-  return esc(s).replace(/(&quot;(?:[^&]|&(?!quot;))*?&quot;)(\s*:)?|\b(true|false|null)\b|(-?\b\d+(?:\.\d+)?(?:e[+-]?\d+)?\b)/gi, (m, str, colon, lit, num) => {
-    if (str) return colon ? `<span class="k">${str}</span>${colon}` : `<span class="s">${str}</span>`;
-    if (lit) return `<span class="l">${lit}</span>`;
-    return `<span class="n">${num}</span>`;
-  });
+const yInline = (x) => x === null || x === undefined ? "null" : typeof x === "string" ? yScalar(x) : String(x);
+function yScalar(t) {
+  if (t === "") return '""';
+  const plain = /^[A-Za-z0-9_\/.$(<][^\n]*$/.test(t) && !/(:\s|:$|\s#|\s$)/.test(t)
+    && !/^(true|false|null|yes|no|on|off|~)$/i.test(t) && !/^[-+]?\d[\d_]*(\.\d*)?([eE][-+]?\d+)?$/.test(t) && !/^\d{4}-\d\d-\d\d/.test(t);
+  return plain ? t : JSON.stringify(t);
 }
+const yKey = (k) => /^[A-Za-z_][\w.\/-]*$/.test(k) ? k : JSON.stringify(k);
+const yEmpty = (x) => Array.isArray(x) ? !x.length : !Object.keys(x).length;
+function toYaml(v, ind = 0) {
+  const pad = " ".repeat(ind);
+  if (Array.isArray(v)) {
+    if (!v.length) return pad + "[]";
+    return v.map((x) => x && typeof x === "object" && !yEmpty(x) ? pad + "- " + toYaml(x, ind + 2).slice(ind + 2) : pad + "- " + (x && typeof x === "object" ? (Array.isArray(x) ? "[]" : "{}") : yInline(x))).join("\n");
+  }
+  if (v && typeof v === "object") {
+    const ks = Object.keys(v);
+    if (!ks.length) return pad + "{}";
+    return ks.map((k) => {
+      const x = v[k], key = pad + yKey(k) + ":";
+      if (x && typeof x === "object") return yEmpty(x) ? key + (Array.isArray(x) ? " []" : " {}") : key + "\n" + toYaml(x, ind + 2);
+      if (typeof x === "string" && x.includes("\n")) {
+        const body = x.replace(/\n$/, "").split("\n").map((l) => l ? pad + "  " + l : "").join("\n");
+        return key + (x.endsWith("\n") ? " |" : " |-") + "\n" + body;
+      }
+      return key + " " + yInline(x);
+    }).join("\n");
+  }
+  return pad + yInline(v);
+}
+const spanOf = (cls, t) => `<span class="${cls}">${esc(t)}</span>`;
+function hlYaml(text) {
+  let block = -1;
+  return text.split("\n").map((line) => {
+    const ind = line.length - line.trimStart().length;
+    if (block >= 0) { if (!line.trim() || ind > block) return spanOf("s", line); block = -1; }
+    if (/^\s*#/.test(line) || line === "---") return spanOf("c", line);
+    const m = line.match(/^(\s*(?:-\s+)*)((?:"(?:[^"\\]|\\.)*"|[A-Za-z_][\w.\/-]*)):(?=\s|$)\s*(.*)$/);
+    const lead = m ? m[1] : line.match(/^\s*(?:-\s+)*/)[0];
+    const head = m ? esc(m[1]) + spanOf("k", m[2]) + ":" : esc(lead);
+    const val = m ? m[3] : line.slice(lead.length);
+    const vm = val.match(/^(.*?)(\s+#.*)?$/);
+    let v = vm[1];
+    if (/^\|[-+]?$/.test(v)) block = ind;
+    const cls = /^(true|false|null)$/.test(v) ? "l" : /^-?\d+(\.\d+)?$/.test(v) ? "n" : "s";
+    return head + (m && v ? " " : "") + (v ? spanOf(cls, v) : "") + (vm[2] ? spanOf("c", vm[2]) : "");
+  }).join("\n");
+}
+function hlSh(text) {
+  return text.split("\n").map((l) => l.startsWith("$ ") ? `${spanOf("p", "$")} ${spanOf("k", l.slice(2))}` : /^\s*#/.test(l) ? spanOf("c", l) : spanOf("s", l)).join("\n");
+}
+// The ax command a CLI-originated gRPC call corresponds to; messages can override it with m.sh.
+function axCmd(m) {
+  if (m.sh) return m.sh;
+  const j = m.json || {};
+  if (m.from !== "cli" || !j.grpc) return "";
+  const r = j.request || j, op = j.grpc.split("/")[1];
+  const a = r.atespace && r.atespace !== "default" ? " -a " + r.atespace : "";
+  switch (op) {
+    case "ResumeTask": return `$ ax resume task ${r.name}${a}`;
+    case "SuspendTask": return `$ ax suspend task ${r.name}${a}`;
+    case "DeleteTask": return `$ ax delete task ${r.name}${a}`;
+    case "ListTasks": return `$ ax get tasks${a}`;
+    case "CreateTask": return `$ ax apply -f ${r.task ? "task" : "manifests"}.yaml${a}`;
+    case "UpdateWorkspace": case "UpdateModel": return `$ ax apply -f manifests.yaml${a}`;
+    case "StartProcess": {
+      const name = ((j.headers || {})["ate-target-actor"] || "").split("/")[1];
+      if (!name) return "";
+      const argv = [(j.command || "").split("/").pop()].concat(j.args || []).filter(Boolean);
+      return `$ ax ssh ${name}${j.tty || !argv.length ? "" : " -- " + argv.join(" ")}`;
+    }
+  }
+  return "";
+}
+const inspText = (m) => [axCmd(m), m.yaml, m.json ? toYaml(m.json) : ""].filter(Boolean).join("\n\n");
 
 function renderInspector() {
   const box = $("#insp");
   const i = st.selected != null ? st.selected : st.idx;
   const m = MSGS[i];
   if (!m) {
-    box.innerHTML = `<p class="empty">Press <b>Play</b> or <b>Step</b> (or click any row below) to inspect the wire payload.</p>`;
+    box.innerHTML = `<p class="empty">Press <b>Play</b> or <b>Step</b> (or click any row below) to inspect the ax command and payload.</p>`;
     return;
   }
   const from = actor(m.from) || { label: m.from }, to = actor(m.to) || { label: m.to };
   const method = methodOf(m);
   box.innerHTML = `<div class="ih"><span class="dot k-${m.kind}"></span><span class="im">${esc(method)}</span><span class="isz">${size(m)}</span></div>
     <div class="ir">${esc(from.label)} → ${esc(to.label)} · ${KIND[m.kind] || m.kind} · #${i + 1}</div>
-    ${m.dep ? `<div class="depbox"><span class="deptag">Historical Era</span><p>${esc(m.dep)}</p></div>` : ""}<pre class="json" id="insp-json">${hl(m.json)}</pre>
+    ${m.dep ? `<div class="depbox"><span class="deptag">Historical Era</span><p>${esc(m.dep)}</p></div>` : ""}${axCmd(m) ? `<pre class="json term">${hlSh(axCmd(m))}</pre>` : ""}${m.yaml ? `<pre class="json">${hlYaml(m.yaml)}</pre>` : ""}${m.json ? `<pre class="json" id="insp-json">${hlYaml(toYaml(m.json))}</pre>` : ""}
     ${m.notes ? `<dl class="notes">${m.notes.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}${m.risk ? `<div class="riskline">${riskBtn(m.risk)}<p><b>Guardrail: ${esc(RISKS[m.risk].title)}.</b> ${esc(RISKS[m.risk].text)} <a href="#guardrails">See all guardrails →</a></p></div>` : ""}`;
 }
 
-const size = (m) => { const b = new TextEncoder().encode(JSON.stringify(m.json)).length; return b > 1024 ? (b / 1024).toFixed(1) + " KB" : b + " B"; };
+const size = (m) => { const b = new TextEncoder().encode(m.json ? JSON.stringify(m.json) : (m.yaml || m.sh || "")).length; return b > 1024 ? (b / 1024).toFixed(1) + " KB" : b + " B"; };
 function renderTable() {
   const rows = MSGS.map((m, i) => {
     const cls = [i === st.idx ? "cur" : "", i > st.idx ? "fut" : "", i === st.selected ? "sel" : "", m.dep ? "dep" : ""].join(" ");
@@ -2192,9 +2261,9 @@ document.addEventListener("click", (e) => {
       const i = st.selected != null ? st.selected : st.idx;
       const m = MSGS[i];
       if (m && navigator.clipboard) {
-        navigator.clipboard.writeText(JSON.stringify(m.json, null, 2));
+        navigator.clipboard.writeText(inspText(m));
         t.textContent = "Copied!";
-        setTimeout(() => { t.textContent = "Copy JSON"; }, 1200);
+        setTimeout(() => { t.textContent = "Copy"; }, 1200);
       }
       break;
     }

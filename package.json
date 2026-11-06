@@ -1,0 +1,15 @@
+{
+  "name": "ax-explained",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AX Explained — Interactive wire-protocol and 3D isometric architecture tutorial for Google AX (github.com/google/ax) and Agent Substrate.",
+  "scripts": {
+    "build": "python3 scripts/build.py",
+    "dev": "python3 -m http.server 3000"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/google/ax"
+  },
+  "license": "Apache-2.0"
+}
